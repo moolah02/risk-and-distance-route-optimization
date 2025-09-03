@@ -301,7 +301,7 @@
 
         .sites-list {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
             gap: 8px;
         }
 
@@ -319,7 +319,7 @@
             font-weight: 500;
         }
 
-        .site-money {
+        .site-indicator {
             font-size: 0.9em;
             color: #4CAF50;
             font-weight: 600;
@@ -332,10 +332,13 @@
             padding: 12px;
             border-radius: 4px;
             margin-bottom: 15px;
+            display: flex;
+            align-items: center;
         }
 
         .warning i {
             margin-right: 8px;
+            color: #f39c12;
         }
 
         .loading {
@@ -427,8 +430,8 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1><i class="fas fa-route"></i> EnviroGas Money-Constrained Route Optimizer</h1>
-            <p>Optimize biker routes considering both distance efficiency and $5,000 per biker money limit</p>
+            <h1><i class="fas fa-route"></i> EnviroGas Route Optimizer</h1>
+            <p>Optimize biker routes with distance efficiency and load balancing</p>
         </div>
 
         <div class="controls-section">
@@ -472,31 +475,30 @@
         <div class="money-input-section">
             <h3><i class="fas fa-dollar-sign"></i> Daily Collection Amounts per Site</h3>
             <p style="font-size: 0.9em; color: #6c757d; margin-bottom: 15px;">
-                Enter the expected money collection amount for each site today (in USD)
+                Average daily revenue amounts (pre-loaded from your business data). Edit individual amounts if needed for today's collection.
             </p>
             
             <div class="preset-buttons">
-                <button class="preset-btn" onclick="setPresetAmounts('low')">Low Day ($500-2000)</button>
-                <button class="preset-btn" onclick="setPresetAmounts('medium')">Medium Day ($1000-3500)</button>
-                <button class="preset-btn" onclick="setPresetAmounts('high')">High Day ($1500-4500)</button>
-                <button class="preset-btn" onclick="setPresetAmounts('random')">Random Amounts</button>
+                <button class="preset-btn" onclick="resetToAverages()">Reset to Average Revenue</button>
+                <button class="preset-btn" onclick="adjustAllAmounts(0.8)">Reduce All by 20%</button>
+                <button class="preset-btn" onclick="adjustAllAmounts(1.2)">Increase All by 20%</button>
                 <button class="preset-btn" onclick="clearAllAmounts()">Clear All</button>
             </div>
             
             <div class="money-grid" id="moneyGrid">
                 <p style="color: #6c757d; text-align: center; padding: 20px; grid-column: 1/-1;">
-                    Select a city first to enter money amounts
+                    Select a city first to see revenue amounts
                 </p>
             </div>
         </div>
 
         <button class="optimize-button" id="optimizeBtn" disabled>
-            <i class="fas fa-route"></i> Optimize Routes with Money Constraints
+            <i class="fas fa-route"></i> Optimize Routes
         </button>
 
         <div class="loading" id="loading">
             <i class="fas fa-spinner"></i>
-            <div>Optimizing routes considering money constraints and geographic efficiency...</div>
+            <div>Optimizing routes considering load balance and geographic efficiency...</div>
         </div>
 
         <div class="results-section" id="resultsSection">
@@ -655,284 +657,393 @@
             '#FFC107', '#E91E63', '#3F51B5', '#009688', '#CDDC39'
         ];
 
+        // Hardcoded Average Daily Revenue from business data
+        const averageRevenue = {
+            harare: {
+                "TAFARA": 254,
+                "DERBYSHIRE": 409,
+                "RUWA GEORGE": 503,
+                "LUSAKA": 256,
+                "MAVAMBO": 384,
+                "GLEN VIEW": 473,
+                "OK BUDIRIRO": 316,
+                "ZIMRE PARK": 588,
+                "CURRENT": 295,
+                "MARONDERA": 450,
+                "EASTLEA": 339,
+                "UNIT L": 929,
+                "KAMFINSA": 854,
+                "C JUNCTION": 1171,
+                "CHISIPITE": 1235,
+                "ST MARYS": 239,
+                "NEWLANDS": 614,
+                "GROOMBRIDGE": 686,
+                "ZENGEZA 2": 274,
+                "ASHBRITTLE": 554,
+                "ZENGEZA 3 - TERMINUS": 400,
+                "HELENSVALE": 820,
+                "ZVIDO SHOPS UNIT N": 565,
+                "VILLAGE": 475,
+                "UNIT O SHOPS": 332,
+                "CHADCOMBE": 594,
+                "SOUTHLEA PARK": 304,
+                "QUEENSDALE": 498,
+                "MUFAKOSE": 336,
+                "APEX MARONDERA": 270,
+                "KENTUCKY": 300,
+                "GREENCROFT": 426,
+                "AVONDALE": 745,
+                "KUWADZANA 2": 364,
+                "MABELREIGN": 443,
+                "DZ E EXTENSION": 430,
+                "AVONLEA": 283,
+                "TYNWALD": 421,
+                "WESTGATE": 1498,
+                "ASPINDALE": 312,
+                "MARIMBA": 557,
+                "MONTAGU": 365,
+                "HOUGHTON PARK": 323,
+                "GRANARY PHASE4": 300,
+                "REDAN MBARE": 381,
+                "GRANARY PHASE 1": 317,
+                "MBARE OK": 210,
+                "GRANARY PHASE2": 161,
+                "MBARE STODAD": 214,
+                "GRANARY PHASE 3": 281,
+                "BELVEDERE-DIVARIS": 460,
+                "GLENVIEW 1": 190,
+                "DAMAFALLS": 151,
+                "GLENNORAH MASHWEDE": 294,
+                "MAKONI": 517,
+                "CROWBOROUGH PHASE 3": 191,
+                "MABVUKU": 463,
+                "DZ EXTENSION TWO": 430,
+                "CROWBOROUGH PHASE 2": 201,
+                "GLENVIEW 3": 69,
+                "GLEN NORAH": 294,
+                "BUDIRIRO 4": 279,
+                "WILLOWVALE": 205,
+                "NORTON": 468,
+                "MAPURANGA": 300,
+                "CHIGOVANYIKA": 226,
+                "RUWA PIKNPAY": 371,
+                "SUNWAY CITY": 307,
+                "MBARE RUNYARARO": 300
+            },
+            bulawayo: {
+                "COWDRY PARK ANTHERNS": 292,
+                "COWDRY PARK PKNPAY": 373,
+                "SOUTHERN CROSS": 94,
+                "NKETA 9 ": 292,
+                "LUVEVE 5": 232,
+                "MORNING SIDE": 326,
+                "HILLSIDE": 415,
+                "OLD PUMULA": 376,
+                "MPOPOMA OUTLET": 611,
+                "OLD LUVEVE": 297,
+                "MZILIKAZI": 583,
+                "MAKONI": 631,
+                "SOKUSILE": 616,
+                "ESIGAYWENI": 611,
+                "EMGWANWINI": 540,
+                "BELLEVUE": 310,
+                "3RD": 510,
+                "NORTHEND": 389,
+                "TERMINUS": 627,
+                "MPOMPINI": 491,
+                "PUMULA EAST": 385,
+                "HYDE PARK": 315,
+                "MAKOKOBA": 610,
+                "CARAVAN": 421,
+                "REDAN BELLEVUE": 310,
+                "ENTUMBANE HLALO": 222,
+                "NJUBE 2": 240,
+                "MAGWEGWE NORTH": 409,
+                "NJUBE": 345,
+                "NKETA 7": 226,
+                "PUMULA OLD": 376,
+                "PUMULA NORTH": 285,
+                "BURNSIDE": 93,
+                "MAGWEGWE OLD": 346,
+                "GWABALANDA": 176,
+                "ESIGODWENI": 368,
+                "NKETA 8": 144,
+                "EMAKHADENI SAI MART": 127,
+                "MUNYORO": 312,
+                "COWDRAY PARK DENVER": 442,
+                "EMAKHADENI WOZA WOZA": 251
+            }
+        };
+
         let currentCity = '';
         let excludedSites = new Set();
         let siteMoneyAmounts = {};
         let optimizedRoutes = [];
 
-        // RouteOptimizer class (embedded from previous artifact)
+        // Advanced RouteOptimizer with geographic clustering and real road distances
         class RouteOptimizer {
             constructor(locations, depot, maxMoneyPerBiker = 5000) {
                 this.locations = locations;
                 this.depot = depot;
                 this.maxMoneyPerBiker = maxMoneyPerBiker;
                 this.routeColors = routeColors;
+                this.distanceCache = new Map(); // Cache for road distances
             }
 
             async optimizeRoutesWithMoney(sites, numBikers, siteMoneyAmounts) {
-                const clusters = await this.hybridClusteringWithMoney(sites, numBikers, siteMoneyAmounts);
+                console.log(`Starting advanced optimization: ${sites.length} sites, ${numBikers} bikers`);
+                
+                // Step 1: Create geographic clusters using k-means
+                const geoClusters = await this.createGeographicClusters(sites, numBikers);
+                
+                // Step 2: Balance money within geographic constraints
+                const balancedClusters = await this.balanceMoneyGeographically(geoClusters, siteMoneyAmounts);
+                
+                // Step 3: Optimize routes within each cluster using real road distances
                 const optimizedRoutes = [];
                 
-                for (let i = 0; i < clusters.length; i++) {
-                    const cluster = clusters[i];
-                    const route = this.optimizeClusterRoute(cluster.sites, this.depot);
-                    const totalDistance = await this.calculateRouteDistance(route);
-                    const totalMoney = cluster.totalMoney;
+                for (let i = 0; i < numBikers; i++) {
+                    const cluster = balancedClusters[i] || { sites: [] };
+                    const route = await this.optimizeClusterRouteAdvanced(cluster.sites, this.depot);
+                    const totalDistance = await this.calculateRealRouteDistance(route);
+                    
+                    const routeMoney = cluster.sites.reduce((sum, site) => 
+                        sum + (siteMoneyAmounts[site.name] || 0), 0
+                    );
                     
                     optimizedRoutes.push({
                         bikerId: i + 1,
                         route: route,
                         sites: cluster.sites,
                         totalDistance: totalDistance,
-                        totalMoney: totalMoney,
-                        color: this.routeColors[i % this.routeColors.length],
-                        moneyPerSite: cluster.sites.map(site => ({
-                            name: site.name,
-                            amount: siteMoneyAmounts[site.name] || 0
-                        }))
+                        routeMoney: routeMoney,
+                        exceedsLimit: routeMoney > this.maxMoneyPerBiker,
+                        excessAmount: Math.max(0, routeMoney - this.maxMoneyPerBiker),
+                        color: this.routeColors[i % this.routeColors.length]
                     });
                 }
                 
-                return this.finalMoneyBalancing(optimizedRoutes, siteMoneyAmounts);
+                console.log('Optimization complete');
+                return optimizedRoutes;
             }
 
-            async hybridClusteringWithMoney(sites, k, siteMoneyAmounts) {
-                const totalMoney = sites.reduce((sum, site) => sum + (siteMoneyAmounts[site.name] || 0), 0);
-                const targetMoneyPerBiker = totalMoney / k;
+            async createGeographicClusters(sites, k) {
+                console.log(`Creating ${k} geographic clusters from ${sites.length} sites`);
                 
-                const moneyBalancedGroups = this.createMoneyBalancedGroups(sites, k, siteMoneyAmounts, targetMoneyPerBiker);
-                const finalClusters = [];
-                
-                for (let group of moneyBalancedGroups) {
-                    if (group.sites.length > 15) {
-                        const subClusters = await this.geographicClustering(group.sites, Math.ceil(group.sites.length / 10));
-                        for (let subCluster of subClusters) {
-                            const totalMoney = subCluster.reduce((sum, site) => sum + (siteMoneyAmounts[site.name] || 0), 0);
-                            finalClusters.push({
-                                sites: subCluster,
-                                totalMoney: totalMoney
-                            });
-                        }
-                    } else {
-                        finalClusters.push(group);
-                    }
-                }
-                
-                return finalClusters;
-            }
-
-            createMoneyBalancedGroups(sites, k, siteMoneyAmounts, targetMoney) {
-                const sortedSites = [...sites].sort((a, b) => 
-                    (siteMoneyAmounts[b.name] || 0) - (siteMoneyAmounts[a.name] || 0)
-                );
-                
-                const groups = Array(k).fill().map(() => ({
-                    sites: [],
-                    totalMoney: 0
-                }));
-                
-                for (const site of sortedSites) {
-                    const siteAmount = siteMoneyAmounts[site.name] || 0;
-                    
-                    let bestGroupIndex = 0;
-                    let minMoney = groups[0].totalMoney;
-                    
-                    for (let i = 1; i < groups.length; i++) {
-                        if (groups[i].totalMoney < minMoney && 
-                            groups[i].totalMoney + siteAmount <= this.maxMoneyPerBiker) {
-                            minMoney = groups[i].totalMoney;
-                            bestGroupIndex = i;
-                        }
-                    }
-                    
-                    groups[bestGroupIndex].sites.push(site);
-                    groups[bestGroupIndex].totalMoney += siteAmount;
-                }
-                
-                return groups;
-            }
-
-            async geographicClustering(sites, k) {
                 if (sites.length <= k) {
                     return sites.map(site => [site]);
                 }
 
-                let centroids = [];
-                for (let i = 0; i < k; i++) {
-                    const randomIndex = Math.floor(Math.random() * sites.length);
-                    centroids.push({
-                        lat: sites[randomIndex].lat,
-                        lng: sites[randomIndex].lng
-                    });
-                }
-
+                // Initialize centroids using k-means++
+                let centroids = this.initializeCentroidsKMeansPlusPlus(sites, k);
                 let clusters = [];
-                let maxIterations = 20;
+                let maxIterations = 50;
                 let iteration = 0;
 
                 while (iteration < maxIterations) {
+                    // Assign sites to closest centroid
                     clusters = Array(k).fill().map(() => []);
 
-                    sites.forEach(site => {
+                    for (const site of sites) {
                         let minDistance = Infinity;
                         let closestCluster = 0;
 
-                        centroids.forEach((centroid, i) => {
+                        for (let i = 0; i < centroids.length; i++) {
                             const distance = this.calculateStraightDistance(
-                                site.lat, site.lng, centroid.lat, centroid.lng
+                                site.lat, site.lng, centroids[i].lat, centroids[i].lng
                             );
                             if (distance < minDistance) {
                                 minDistance = distance;
                                 closestCluster = i;
                             }
-                        });
+                        }
 
                         clusters[closestCluster].push(site);
-                    });
+                    }
 
+                    // Update centroids
                     let hasChanged = false;
-                    centroids.forEach((centroid, i) => {
+                    for (let i = 0; i < centroids.length; i++) {
                         if (clusters[i].length > 0) {
                             const newLat = clusters[i].reduce((sum, site) => sum + site.lat, 0) / clusters[i].length;
                             const newLng = clusters[i].reduce((sum, site) => sum + site.lng, 0) / clusters[i].length;
                             
-                            if (Math.abs(newLat - centroid.lat) > 0.001 || Math.abs(newLng - centroid.lng) > 0.001) {
+                            if (Math.abs(newLat - centroids[i].lat) > 0.001 || Math.abs(newLng - centroids[i].lng) > 0.001) {
                                 hasChanged = true;
                             }
                             
-                            centroid.lat = newLat;
-                            centroid.lng = newLng;
+                            centroids[i] = { lat: newLat, lng: newLng };
                         }
-                    });
+                    }
 
                     if (!hasChanged) break;
                     iteration++;
                 }
 
-                return clusters.filter(cluster => cluster.length > 0);
+                // Ensure we have exactly k clusters (some might be empty)
+                while (clusters.length < k) {
+                    clusters.push([]);
+                }
+
+                console.log(`Geographic clustering complete after ${iteration} iterations`);
+                return clusters.slice(0, k);
             }
 
-            finalMoneyBalancing(routes, siteMoneyAmounts) {
-                const maxIterations = 10;
-                let iteration = 0;
+            initializeCentroidsKMeansPlusPlus(sites, k) {
+                const centroids = [];
                 
-                while (iteration < maxIterations) {
-                    let improved = false;
+                // First centroid: random site
+                centroids.push({
+                    lat: sites[Math.floor(Math.random() * sites.length)].lat,
+                    lng: sites[Math.floor(Math.random() * sites.length)].lng
+                });
+
+                // Subsequent centroids: choose with probability proportional to squared distance
+                for (let c = 1; c < k; c++) {
+                    const distances = sites.map(site => {
+                        const minDistToCentroid = Math.min(...centroids.map(centroid =>
+                            this.calculateStraightDistance(site.lat, site.lng, centroid.lat, centroid.lng)
+                        ));
+                        return minDistToCentroid * minDistToCentroid;
+                    });
+
+                    const totalDistance = distances.reduce((sum, d) => sum + d, 0);
+                    const rand = Math.random() * totalDistance;
                     
-                    for (let i = 0; i < routes.length; i++) {
-                        if (routes[i].totalMoney > this.maxMoneyPerBiker) {
-                            for (let j = 0; j < routes.length; j++) {
-                                if (i !== j && this.tryMoveHighValueSite(routes[i], routes[j], siteMoneyAmounts)) {
-                                    improved = true;
-                                    break;
-                                }
-                            }
+                    let cumsum = 0;
+                    for (let i = 0; i < sites.length; i++) {
+                        cumsum += distances[i];
+                        if (cumsum >= rand) {
+                            centroids.push({ lat: sites[i].lat, lng: sites[i].lng });
+                            break;
                         }
                     }
+                }
+
+                return centroids;
+            }
+
+            async balanceMoneyGeographically(geoClusters, siteMoneyAmounts) {
+                console.log('Balancing money within geographic constraints');
+                
+                const clusters = geoClusters.map(sites => ({
+                    sites: sites,
+                    totalMoney: sites.reduce((sum, site) => sum + (siteMoneyAmounts[site.name] || 0), 0)
+                }));
+
+                // Multi-phase balancing
+                for (let phase = 0; phase < 3; phase++) {
+                    await this.balancePhase(clusters, siteMoneyAmounts, phase);
+                }
+
+                return clusters;
+            }
+
+            async balancePhase(clusters, siteMoneyAmounts, phase) {
+                const maxIterations = phase === 0 ? 20 : 10;
+                
+                for (let iter = 0; iter < maxIterations; iter++) {
+                    let improved = false;
                     
-                    if (!improved) {
-                        const moneyAmounts = routes.map(r => r.totalMoney);
-                        const maxMoney = Math.max(...moneyAmounts);
-                        const minMoney = Math.min(...moneyAmounts);
-                        const avgMoney = moneyAmounts.reduce((a, b) => a + b) / routes.length;
+                    // Sort clusters by money (descending)
+                    clusters.sort((a, b) => b.totalMoney - a.totalMoney);
+                    
+                    for (let i = 0; i < clusters.length - 1; i++) {
+                        const highCluster = clusters[i];
                         
-                        if (maxMoney - minMoney > avgMoney * 0.3) {
-                            const maxRoute = routes[moneyAmounts.indexOf(maxMoney)];
-                            const minRoute = routes[moneyAmounts.indexOf(minMoney)];
+                        for (let j = i + 1; j < clusters.length; j++) {
+                            const lowCluster = clusters[j];
                             
-                            if (this.tryBalanceMoney(maxRoute, minRoute, siteMoneyAmounts)) {
+                            // Skip if difference is small
+                            if (highCluster.totalMoney - lowCluster.totalMoney < 300) continue;
+                            
+                            // Try to find a good site to move
+                            const movedSite = await this.findBestSiteToMove(highCluster, lowCluster, siteMoneyAmounts, phase);
+                            
+                            if (movedSite) {
+                                this.moveSite(highCluster, lowCluster, movedSite, siteMoneyAmounts);
                                 improved = true;
+                                break;
                             }
                         }
+                        
+                        if (improved) break;
                     }
                     
                     if (!improved) break;
-                    iteration++;
                 }
-                
-                routes.forEach(route => {
-                    route.totalMoney = route.sites.reduce((sum, site) => 
-                        sum + (siteMoneyAmounts[site.name] || 0), 0
-                    );
-                });
-                
-                return routes;
             }
 
-            tryMoveHighValueSite(fromRoute, toRoute, siteMoneyAmounts) {
-                const sortedSites = fromRoute.sites.sort((a, b) => 
-                    (siteMoneyAmounts[b.name] || 0) - (siteMoneyAmounts[a.name] || 0)
-                );
+            async findBestSiteToMove(fromCluster, toCluster, siteMoneyAmounts, phase) {
+                let bestSite = null;
+                let bestScore = -Infinity;
                 
-                for (const site of sortedSites) {
+                for (const site of fromCluster.sites) {
                     const siteAmount = siteMoneyAmounts[site.name] || 0;
                     
-                    if (toRoute.totalMoney + siteAmount <= this.maxMoneyPerBiker &&
-                        fromRoute.totalMoney - siteAmount >= toRoute.totalMoney + siteAmount) {
-                        
-                        if (this.isGeographicallyFeasible(site, toRoute.sites)) {
-                            fromRoute.sites = fromRoute.sites.filter(s => s.name !== site.name);
-                            toRoute.sites.push(site);
-                            fromRoute.totalMoney -= siteAmount;
-                            toRoute.totalMoney += siteAmount;
-                            
-                            fromRoute.route = this.optimizeClusterRoute(fromRoute.sites, this.depot);
-                            toRoute.route = this.optimizeClusterRoute(toRoute.sites, this.depot);
-                            
-                            return true;
-                        }
+                    // Check money constraints
+                    if (toCluster.totalMoney + siteAmount > this.maxMoneyPerBiker) continue;
+                    
+                    // Calculate balance improvement
+                    const currentImbalance = Math.abs(fromCluster.totalMoney - toCluster.totalMoney);
+                    const newFromTotal = fromCluster.totalMoney - siteAmount;
+                    const newToTotal = toCluster.totalMoney + siteAmount;
+                    const newImbalance = Math.abs(newFromTotal - newToTotal);
+                    
+                    if (newImbalance >= currentImbalance) continue; // Must improve balance
+                    
+                    // Calculate geographic penalty
+                    let geoScore = 0;
+                    if (phase > 0) { // Geographic considerations in later phases
+                        const distanceFromOldCluster = this.averageDistanceToCluster(site, fromCluster.sites.filter(s => s !== site));
+                        const distanceToNewCluster = this.averageDistanceToCluster(site, toCluster.sites);
+                        geoScore = distanceFromOldCluster - distanceToNewCluster; // Positive if closer to new cluster
+                    }
+                    
+                    const balanceImprovement = currentImbalance - newImbalance;
+                    const totalScore = balanceImprovement + (geoScore * 0.1); // Weight geographic factor lightly
+                    
+                    if (totalScore > bestScore) {
+                        bestScore = totalScore;
+                        bestSite = site;
                     }
                 }
                 
-                return false;
+                return bestSite;
             }
 
-            tryBalanceMoney(highRoute, lowRoute, siteMoneyAmounts) {
-                const targetDiff = (highRoute.totalMoney - lowRoute.totalMoney) / 2;
+            averageDistanceToCluster(site, clusterSites) {
+                if (clusterSites.length === 0) return 0;
                 
-                for (const site of highRoute.sites) {
-                    const siteAmount = siteMoneyAmounts[site.name] || 0;
-                    
-                    if (Math.abs(siteAmount - targetDiff) < targetDiff * 0.3 &&
-                        lowRoute.totalMoney + siteAmount <= this.maxMoneyPerBiker &&
-                        this.isGeographicallyFeasible(site, lowRoute.sites)) {
-                        
-                        highRoute.sites = highRoute.sites.filter(s => s.name !== site.name);
-                        lowRoute.sites.push(site);
-                        highRoute.totalMoney -= siteAmount;
-                        lowRoute.totalMoney += siteAmount;
-                        
-                        highRoute.route = this.optimizeClusterRoute(highRoute.sites, this.depot);
-                        lowRoute.route = this.optimizeClusterRoute(lowRoute.sites, this.depot);
-                        
-                        return true;
-                    }
-                }
-                
-                return false;
-            }
-
-            isGeographicallyFeasible(newSite, existingSites) {
-                if (existingSites.length === 0) return true;
-                
-                const centroidLat = existingSites.reduce((sum, site) => sum + site.lat, 0) / existingSites.length;
-                const centroidLng = existingSites.reduce((sum, site) => sum + site.lng, 0) / existingSites.length;
-                
-                const distanceToCentroid = this.calculateStraightDistance(
-                    newSite.lat, newSite.lng, centroidLat, centroidLng
+                const totalDistance = clusterSites.reduce((sum, clusterSite) => 
+                    sum + this.calculateStraightDistance(site.lat, site.lng, clusterSite.lat, clusterSite.lng), 0
                 );
                 
-                const avgDistance = existingSites.reduce((sum, site) => 
-                    sum + this.calculateStraightDistance(site.lat, site.lng, centroidLat, centroidLng), 0
-                ) / existingSites.length;
-                
-                return distanceToCentroid <= avgDistance * 1.5;
+                return totalDistance / clusterSites.length;
             }
 
-            optimizeClusterRoute(cluster, depot) {
-                if (cluster.length === 0) return [depot];
+            moveSite(fromCluster, toCluster, site, siteMoneyAmounts) {
+                const siteAmount = siteMoneyAmounts[site.name] || 0;
+                
+                fromCluster.sites = fromCluster.sites.filter(s => s !== site);
+                fromCluster.totalMoney -= siteAmount;
+                
+                toCluster.sites.push(site);
+                toCluster.totalMoney += siteAmount;
+            }
+
+            async optimizeClusterRouteAdvanced(cluster, depot) {
+                if (cluster.length === 0) return [depot, depot];
                 if (cluster.length === 1) return [depot, cluster[0], depot];
 
+                // Use nearest neighbor with 2-opt improvement
+                let route = await this.nearestNeighborRoute(cluster, depot);
+                route = await this.improve2OptWithRealDistances(route);
+                
+                return route;
+            }
+
+            async nearestNeighborRoute(cluster, depot) {
                 let route = [depot];
                 let unvisited = [...cluster];
                 let current = depot;
@@ -941,15 +1052,13 @@
                     let nearestIndex = 0;
                     let minDistance = Infinity;
 
-                    unvisited.forEach((site, index) => {
-                        const distance = this.calculateStraightDistance(
-                            current.lat, current.lng, site.lat, site.lng
-                        );
+                    for (let i = 0; i < unvisited.length; i++) {
+                        const distance = await this.getRealDistance(current, unvisited[i]);
                         if (distance < minDistance) {
                             minDistance = distance;
-                            nearestIndex = index;
+                            nearestIndex = i;
                         }
-                    });
+                    }
 
                     const nearest = unvisited.splice(nearestIndex, 1)[0];
                     route.push(nearest);
@@ -957,29 +1066,37 @@
                 }
 
                 route.push(depot);
-                return this.improve2Opt(route);
+                return route;
             }
 
-            improve2Opt(route) {
+            async improve2OptWithRealDistances(route) {
                 if (route.length < 4) return route;
 
                 let improved = true;
                 let bestRoute = [...route];
 
-                while (improved) {
+                // Limit iterations to prevent timeout
+                let iterations = 0;
+                const maxIterations = Math.min(50, route.length * 2);
+
+                while (improved && iterations < maxIterations) {
                     improved = false;
+                    iterations++;
                     
                     for (let i = 1; i < route.length - 2; i++) {
                         for (let j = i + 1; j < route.length - 1; j++) {
+                            // Create new route with 2-opt swap
                             const newRoute = [...route];
-                            
                             const segment = newRoute.slice(i, j + 1).reverse();
                             newRoute.splice(i, j - i + 1, ...segment);
 
-                            const currentDistance = this.calculateRouteDistance2Opt(route);
-                            const newDistance = this.calculateRouteDistance2Opt(newRoute);
+                            // Check if this improves the route (sample a few key distances)
+                            const currentDist = await this.getRealDistance(route[i-1], route[i]) + 
+                                               await this.getRealDistance(route[j], route[j+1]);
+                            const newDist = await this.getRealDistance(newRoute[i-1], newRoute[i]) + 
+                                           await this.getRealDistance(newRoute[j], newRoute[j+1]);
 
-                            if (newDistance < currentDistance) {
+                            if (newDist < currentDist) {
                                 route = newRoute;
                                 bestRoute = [...newRoute];
                                 improved = true;
@@ -991,14 +1108,40 @@
                 return bestRoute;
             }
 
-            calculateRouteDistance2Opt(route) {
-                let totalDistance = 0;
-                for (let i = 0; i < route.length - 1; i++) {
-                    totalDistance += this.calculateStraightDistance(
-                        route[i].lat, route[i].lng,
-                        route[i + 1].lat, route[i + 1].lng
-                    );
+            async getRealDistance(point1, point2) {
+                const key = `${point1.lat},${point1.lng}-${point2.lat},${point2.lng}`;
+                
+                if (this.distanceCache.has(key)) {
+                    return this.distanceCache.get(key);
                 }
+
+                try {
+                    const response = await fetch(`https://router.project-osrm.org/route/v1/driving/${point1.lng},${point1.lat};${point2.lng},${point2.lat}?overview=false`);
+                    const data = await response.json();
+
+                    if (data.routes && data.routes.length > 0) {
+                        const distance = data.routes[0].distance / 1000; // Convert to km
+                        this.distanceCache.set(key, distance);
+                        return distance;
+                    }
+                } catch (error) {
+                    // Fallback to straight-line distance
+                    console.warn('Failed to get road distance, using straight-line:', error);
+                }
+
+                // Fallback
+                const straightDistance = this.calculateStraightDistance(point1.lat, point1.lng, point2.lat, point2.lng) * 1.3;
+                this.distanceCache.set(key, straightDistance);
+                return straightDistance;
+            }
+
+            async calculateRealRouteDistance(route) {
+                let totalDistance = 0;
+                
+                for (let i = 0; i < route.length - 1; i++) {
+                    totalDistance += await this.getRealDistance(route[i], route[i + 1]);
+                }
+                
                 return totalDistance;
             }
 
@@ -1011,20 +1154,6 @@
                           Math.sin(dLon/2) * Math.sin(dLon/2);
                 const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
                 return R * c;
-            }
-
-            async calculateRouteDistance(route) {
-                let totalDistance = 0;
-                
-                for (let i = 0; i < route.length - 1; i++) {
-                    const distance = this.calculateStraightDistance(
-                        route[i].lat, route[i].lng,
-                        route[i + 1].lat, route[i + 1].lng
-                    );
-                    totalDistance += distance * 1.3;
-                }
-                
-                return totalDistance;
             }
         }
 
@@ -1045,12 +1174,12 @@
                 populateExcludeSites(city);
                 populateMoneyInputs(city);
                 excludedSites.clear();
-                siteMoneyAmounts = {};
             } else {
                 document.getElementById('excludeSitesContainer').innerHTML = 
                     '<p style="color: #6c757d; text-align: center; padding: 20px;">Select a city first to see available sites</p>';
                 document.getElementById('moneyGrid').innerHTML = 
-                    '<p style="color: #6c757d; text-align: center; padding: 20px; grid-column: 1/-1;">Select a city first to enter money amounts</p>';
+                    '<p style="color: #6c757d; text-align: center; padding: 20px; grid-column: 1/-1;">Select a city first to see revenue amounts</p>';
+                siteMoneyAmounts = {};
             }
             
             validateInputs();
@@ -1080,60 +1209,54 @@
             
             let html = '';
             cityLocations.forEach(site => {
+                const avgRevenue = averageRevenue[city][site.name] || 250;
+                
                 html += `
                     <div class="money-input">
                         <label for="money_${site.name}">${site.name}:</label>
                         <input type="number" id="money_${site.name}" min="0" max="10000" 
-                               placeholder="0" onchange="updateSiteMoneyAmount('${site.name}', this.value)">
+                               value="${avgRevenue}" onchange="updateSiteMoneyAmount('${site.name}', this.value)">
                     </div>
                 `;
+                
+                siteMoneyAmounts[site.name] = avgRevenue;
             });
             
             container.innerHTML = html;
-        }
-
-        function toggleSiteExclusion(siteName, isExcluded) {
-            if (isExcluded) {
-                excludedSites.add(siteName);
-            } else {
-                excludedSites.delete(siteName);
-            }
             validateInputs();
         }
 
-        function updateSiteMoneyAmount(siteName, amount) {
-            const value = parseFloat(amount) || 0;
-            siteMoneyAmounts[siteName] = value;
-            validateInputs();
-        }
-
-        function setPresetAmounts(preset) {
+        function resetToAverages() {
             if (!currentCity) return;
             
             const cityLocations = locations[currentCity];
             
             cityLocations.forEach(site => {
-                let amount = 0;
+                const avgRevenue = averageRevenue[currentCity][site.name] || 250;
+                siteMoneyAmounts[site.name] = avgRevenue;
                 
-                switch(preset) {
-                    case 'low':
-                        amount = Math.floor(Math.random() * 1500) + 500; // 500-2000
-                        break;
-                    case 'medium':
-                        amount = Math.floor(Math.random() * 2500) + 1000; // 1000-3500
-                        break;
-                    case 'high':
-                        amount = Math.floor(Math.random() * 3000) + 1500; // 1500-4500
-                        break;
-                    case 'random':
-                        amount = Math.floor(Math.random() * 4000) + 500; // 500-4500
-                        break;
-                }
-                
-                siteMoneyAmounts[site.name] = amount;
                 const input = document.getElementById(`money_${site.name}`);
                 if (input) {
-                    input.value = amount;
+                    input.value = avgRevenue;
+                }
+            });
+            
+            validateInputs();
+        }
+
+        function adjustAllAmounts(multiplier) {
+            if (!currentCity) return;
+            
+            const cityLocations = locations[currentCity];
+            
+            cityLocations.forEach(site => {
+                const currentAmount = siteMoneyAmounts[site.name] || 0;
+                const newAmount = Math.round(currentAmount * multiplier);
+                
+                siteMoneyAmounts[site.name] = newAmount;
+                const input = document.getElementById(`money_${site.name}`);
+                if (input) {
+                    input.value = newAmount;
                 }
             });
             
@@ -1156,12 +1279,27 @@
             validateInputs();
         }
 
+        function toggleSiteExclusion(siteName, isExcluded) {
+            if (isExcluded) {
+                excludedSites.add(siteName);
+            } else {
+                excludedSites.delete(siteName);
+            }
+            validateInputs();
+        }
+
+        function updateSiteMoneyAmount(siteName, amount) {
+            const value = parseFloat(amount) || 0;
+            siteMoneyAmounts[siteName] = value;
+            validateInputs();
+        }
+
         function validateInputs() {
             const city = document.getElementById('citySelect').value;
             const numBikers = parseInt(document.getElementById('numBikers').value);
             const moneyLimit = parseInt(document.getElementById('moneyLimit').value);
             
-            const hasMoneyAmounts = Object.values(siteMoneyAmounts).some(amount => amount > 0);
+            const hasMoneyAmounts = city && Object.keys(siteMoneyAmounts).length > 0;
             
             const isValid = city && 
                            numBikers >= 1 && numBikers <= 15 &&
@@ -1181,7 +1319,6 @@
                 return;
             }
             
-            // Filter out excluded sites
             const availableSites = locations[city].filter(site => !excludedSites.has(site.name));
             
             if (availableSites.length === 0) {
@@ -1189,22 +1326,18 @@
                 return;
             }
             
-            // Show loading
             document.getElementById('loading').classList.add('show');
             document.getElementById('resultsSection').classList.remove('show');
             
             try {
-                // Create optimizer
                 const optimizer = new RouteOptimizer(availableSites, depots[city], moneyLimit);
                 
-                // Run optimization
                 optimizedRoutes = await optimizer.optimizeRoutesWithMoney(
                     availableSites,
                     numBikers,
                     siteMoneyAmounts
                 );
                 
-                // Display results
                 displayResults(optimizedRoutes);
                 
             } catch (error) {
@@ -1223,33 +1356,21 @@
 
         function displaySummaryCards(routes) {
             const totalSites = routes.reduce((sum, route) => sum + route.sites.length, 0);
-            const totalMoney = routes.reduce((sum, route) => sum + route.totalMoney, 0);
             const totalDistance = routes.reduce((sum, route) => sum + route.totalDistance, 0);
-            const moneyLimit = parseInt(document.getElementById('moneyLimit').value);
-            
-            const moneyAmounts = routes.map(r => r.totalMoney);
-            const maxMoney = Math.max(...moneyAmounts);
-            const minMoney = Math.min(...moneyAmounts);
-            const violatingRoutes = routes.filter(r => r.totalMoney > moneyLimit);
+            const exceedingRoutes = routes.filter(route => route.exceedsLimit);
             
             const summaryCards = document.getElementById('summaryCards');
             summaryCards.innerHTML = `
                 <div class="summary-card">
                     <h4>Total Bikers</h4>
                     <div class="value">${routes.length}</div>
-                    <div class="description">Routes optimized</div>
+                    <div class="description">Routes created (exactly as requested)</div>
                 </div>
                 
                 <div class="summary-card">
                     <h4>Total Sites</h4>
                     <div class="value">${totalSites}</div>
-                    <div class="description">Sites to collect from</div>
-                </div>
-                
-                <div class="summary-card">
-                    <h4>Total Money</h4>
-                    <div class="value">$${totalMoney.toLocaleString()}</div>
-                    <div class="description">Total collections expected</div>
+                    <div class="description">Sites to visit</div>
                 </div>
                 
                 <div class="summary-card">
@@ -1258,32 +1379,25 @@
                     <div class="description">Combined route distance</div>
                 </div>
                 
-                <div class="summary-card" style="border-left-color: ${violatingRoutes.length > 0 ? '#dc3545' : '#28a745'}">
-                    <h4>Money Balance</h4>
-                    <div class="value">$${minMoney.toFixed(0)} - $${maxMoney.toFixed(0)}</div>
-                    <div class="description">${violatingRoutes.length} routes exceed limit</div>
-                </div>
-                
-                <div class="summary-card">
-                    <h4>Avg per Biker</h4>
-                    <div class="value">${(totalSites / routes.length).toFixed(1)} sites</div>
-                    <div class="description">$${(totalMoney / routes.length).toFixed(0)} average</div>
+                <div class="summary-card" style="border-left-color: ${exceedingRoutes.length > 0 ? '#f39c12' : '#4CAF50'}">
+                    <h4>Limit Violations</h4>
+                    <div class="value">${exceedingRoutes.length}</div>
+                    <div class="description">${exceedingRoutes.length === 0 ? 'All routes within limit' : 'routes exceed money limit'}</div>
                 </div>
             `;
         }
 
         function displayRouteCards(routes) {
-            const moneyLimit = parseInt(document.getElementById('moneyLimit').value);
             const routeCards = document.getElementById('routeCards');
             
             let html = '';
             
             routes.forEach(route => {
-                const exceedsLimit = route.totalMoney > moneyLimit;
-                const warningHtml = exceedsLimit ? 
+                const warningHtml = route.exceedsLimit ? 
                     `<div class="warning">
                         <i class="fas fa-exclamation-triangle"></i>
-                        This route exceeds the $${moneyLimit} limit by $${(route.totalMoney - moneyLimit).toFixed(2)}
+                        Biker ${route.bikerId} exceeds money limit by $${route.excessAmount.toFixed(2)}
+                        (Total: $${route.routeMoney.toFixed(2)})
                      </div>` : '';
                 
                 html += `
@@ -1296,30 +1410,30 @@
                         
                         <div class="route-stats">
                             <div class="route-stat">
-                                <div class="label">Sites</div>
+                                <div class="label">Sites to Visit</div>
                                 <div class="value">${route.sites.length}</div>
                             </div>
                             <div class="route-stat">
-                                <div class="label">Total Money</div>
-                                <div class="value">$${route.totalMoney.toFixed(2)}</div>
-                            </div>
-                            <div class="route-stat">
-                                <div class="label">Distance</div>
+                                <div class="label">Total Distance</div>
                                 <div class="value">${route.totalDistance.toFixed(1)} km</div>
                             </div>
                             <div class="route-stat">
-                                <div class="label">Avg per Site</div>
-                                <div class="value">$${(route.totalMoney / route.sites.length).toFixed(0)}</div>
+                                <div class="label">Estimated Time</div>
+                                <div class="value">${Math.ceil(route.totalDistance * 2.5)} mins</div>
+                            </div>
+                            <div class="route-stat">
+                                <div class="label">Route Status</div>
+                                <div class="value" style="color: ${route.exceedsLimit ? '#f39c12' : '#4CAF50'}">${route.exceedsLimit ? 'Over Limit' : 'Within Limit'}</div>
                             </div>
                         </div>
                         
                         <div class="route-sites">
-                            <h5>Sites to Visit (in order):</h5>
+                            <h5>Route Order (Start: Depot → Sites → End: Depot):</h5>
                             <div class="sites-list">
-                                ${route.moneyPerSite.map(site => `
+                                ${route.route.map((location, index) => `
                                     <div class="site-item">
-                                        <span class="site-name">${site.name}</span>
-                                        <span class="site-money">$${site.amount.toFixed(2)}</span>
+                                        <span class="site-name">${index + 1}. ${location.name || 'DEPOT'}</span>
+                                        <span class="site-indicator">${location.name ? '' : 'START/END'}</span>
                                     </div>
                                 `).join('')}
                             </div>
@@ -1337,14 +1451,15 @@
                 return;
             }
 
-            let csvContent = 'Biker ID,Site Order,Site Name,Collection Amount (USD),Total Route Money (USD),Total Route Distance (km)\n';
+            let csvContent = 'Biker ID,Stop Order,Location Name,Location Type,Route Money Total,Exceeds Limit,Total Route Distance (km)\n';
             
             optimizedRoutes.forEach(routeData => {
-                const { bikerId, sites, totalMoney, totalDistance } = routeData;
+                const { bikerId, route, totalDistance, routeMoney, exceedsLimit } = routeData;
                 
-                sites.forEach((site, index) => {
-                    const siteAmount = siteMoneyAmounts[site.name] || 0;
-                    csvContent += `${bikerId},${index + 1},"${site.name}",${siteAmount.toFixed(2)},${totalMoney.toFixed(2)},${totalDistance.toFixed(1)}\n`;
+                route.forEach((location, index) => {
+                    const locationName = location.name || 'DEPOT';
+                    const locationType = location.name ? 'Site' : 'Depot';
+                    csvContent += `${bikerId},${index + 1},"${locationName}",${locationType},$${routeMoney.toFixed(2)},${exceedsLimit ? 'YES' : 'NO'},${totalDistance.toFixed(1)}\n`;
                 });
             });
 
@@ -1358,26 +1473,23 @@
             }
 
             const totalSites = optimizedRoutes.reduce((sum, route) => sum + route.sites.length, 0);
-            const totalMoney = optimizedRoutes.reduce((sum, route) => sum + route.totalMoney, 0);
             const totalDistance = optimizedRoutes.reduce((sum, route) => sum + route.totalDistance, 0);
+            const exceedingRoutes = optimizedRoutes.filter(route => route.exceedsLimit);
             const moneyLimit = parseInt(document.getElementById('moneyLimit').value);
-            const violatingRoutes = optimizedRoutes.filter(r => r.totalMoney > moneyLimit);
             
             let summaryContent = `EnviroGas Route Optimization Summary Report
 Generated: ${new Date().toLocaleString()}
 City: ${currentCity.charAt(0).toUpperCase() + currentCity.slice(1)}
+Money Limit per Biker: $${moneyLimit.toLocaleString()}
 
 OVERVIEW:
-- Total Bikers: ${optimizedRoutes.length}
+- Total Bikers: ${optimizedRoutes.length} (exactly as requested)
 - Total Sites: ${totalSites}
 - Excluded Sites: ${excludedSites.size}
-- Total Expected Collections: $${totalMoney.toLocaleString()}
 - Total Route Distance: ${totalDistance.toFixed(1)} km
-- Money Limit per Biker: $${moneyLimit.toLocaleString()}
+- Routes Exceeding Money Limit: ${exceedingRoutes.length}
 
-BALANCE ANALYSIS:
-- Routes Exceeding Limit: ${violatingRoutes.length}
-- Average Money per Biker: $${(totalMoney / optimizedRoutes.length).toFixed(2)}
+ROUTE BALANCE:
 - Average Sites per Biker: ${(totalSites / optimizedRoutes.length).toFixed(1)}
 - Average Distance per Biker: ${(totalDistance / optimizedRoutes.length).toFixed(1)} km
 
@@ -1385,13 +1497,13 @@ ROUTE DETAILS:
 `;
 
             optimizedRoutes.forEach(route => {
-                const exceedsLimit = route.totalMoney > moneyLimit ? ' (EXCEEDS LIMIT)' : '';
+                const exceedsText = route.exceedsLimit ? ` (EXCEEDS LIMIT BY $${route.excessAmount.toFixed(2)})` : '';
                 summaryContent += `
-Biker ${route.bikerId}${exceedsLimit}:
+Biker ${route.bikerId}${exceedsText}:
   - Sites: ${route.sites.length}
-  - Total Money: $${route.totalMoney.toFixed(2)}
   - Distance: ${route.totalDistance.toFixed(1)} km
-  - Sites: ${route.sites.map(s => s.name).join(', ')}
+  - Total Money: $${route.routeMoney.toFixed(2)}
+  - Route: ${route.route.map(loc => loc.name || 'DEPOT').join(' → ')}
 `;
             });
 
