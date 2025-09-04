@@ -780,7 +780,7 @@
         let siteMoneyAmounts = {};
         let optimizedRoutes = [];
 
-        // Practical RouteOptimizer - Fast and effective
+        // Complete Multi-Objective Route Optimizer with Geographic Clustering
         class RouteOptimizer {
             constructor(locations, depot, maxMoneyPerBiker = 5000) {
                 this.locations = locations;
@@ -790,39 +790,39 @@
             }
 
             async optimizeRoutesWithMoney(sites, numBikers, siteMoneyAmounts) {
-                console.log(`Optimizing ${sites.length} sites for ${numBikers} bikers`);
+                console.log(`Complete optimization: ${sites.length} sites, ${numBikers} bikers`);
                 
-                // Step 1: Create geographic clusters using simple k-means
+                // Step 1: Create geographic clusters (sites close together)
                 const geoClusters = this.createGeographicClusters(sites, numBikers);
+                console.log('Geographic clustering complete');
                 
-                // Step 2: Balance money loads while maintaining geographic sense
-                const balancedClusters = this.balanceMoneyInClusters(geoClusters, siteMoneyAmounts);
+                // Step 2: Convert to solution format with money calculations
+                let solution = this.convertToSolution(geoClusters, siteMoneyAmounts);
                 
-                // Step 3: Create optimized routes
+                // Step 3: Multi-objective optimization within geographic constraints
+                solution = this.multiObjectiveOptimization(solution, siteMoneyAmounts);
+                
+                // Step 4: Create final routes with optimized site ordering
                 const optimizedRoutes = [];
                 
                 for (let i = 0; i < numBikers; i++) {
-                    const cluster = balancedClusters[i] || { sites: [] };
-                    const route = this.optimizeClusterRoute(cluster.sites, this.depot);
-                    const totalDistance = this.calculateRouteDistanceEstimate(route);
-                    
-                    const routeMoney = cluster.sites.reduce((sum, site) => 
-                        sum + (siteMoneyAmounts[site.name] || 0), 0
-                    );
+                    const cluster = solution[i];
+                    const route = this.optimizeRouteOrder(cluster.sites, this.depot);
+                    const totalDistance = this.calculateRouteDistance(route);
                     
                     optimizedRoutes.push({
                         bikerId: i + 1,
                         route: route,
                         sites: cluster.sites,
                         totalDistance: totalDistance,
-                        routeMoney: routeMoney,
-                        exceedsLimit: routeMoney > this.maxMoneyPerBiker,
-                        excessAmount: Math.max(0, routeMoney - this.maxMoneyPerBiker),
+                        routeMoney: cluster.totalMoney,
+                        exceedsLimit: cluster.totalMoney > this.maxMoneyPerBiker,
+                        excessAmount: Math.max(0, cluster.totalMoney - this.maxMoneyPerBiker),
                         color: this.routeColors[i % this.routeColors.length]
                     });
                 }
                 
-                console.log('Optimization complete');
+                console.log('Complete optimization finished');
                 return optimizedRoutes;
             }
 
@@ -831,15 +831,14 @@
                     return sites.map(site => [site]);
                 }
 
-                // Simple k-means clustering - fast and effective
+                // K-means clustering to group nearby sites
                 let centroids = this.initializeCentroids(sites, k);
                 let clusters = [];
                 
-                // Limit iterations to prevent hanging
-                for (let iter = 0; iter < 20; iter++) {
+                for (let iter = 0; iter < 25; iter++) {
                     clusters = Array(k).fill().map(() => []);
 
-                    // Assign sites to closest centroid
+                    // Assign each site to closest centroid
                     sites.forEach(site => {
                         let minDistance = Infinity;
                         let closestCluster = 0;
@@ -855,7 +854,7 @@
                         clusters[closestCluster].push(site);
                     });
 
-                    // Update centroids
+                    // Update centroids to center of clusters
                     let hasChanged = false;
                     centroids.forEach((centroid, i) => {
                         if (clusters[i].length > 0) {
@@ -874,108 +873,353 @@
                     if (!hasChanged) break;
                 }
 
-                // Ensure we have exactly k clusters
+                // Ensure exactly k clusters
                 while (clusters.length < k) clusters.push([]);
-                return clusters.slice(0, k);
+                return clusters.slice(0, k).filter(cluster => cluster.length > 0);
             }
 
             initializeCentroids(sites, k) {
+                // K-means++ initialization for better starting points
                 const centroids = [];
                 
-                // Pick k random sites as initial centroids
-                const shuffled = [...sites].sort(() => 0.5 - Math.random());
-                for (let i = 0; i < k && i < shuffled.length; i++) {
-                    centroids.push({
-                        lat: shuffled[i].lat,
-                        lng: shuffled[i].lng
+                // First centroid: random site
+                const firstSite = sites[Math.floor(Math.random() * sites.length)];
+                centroids.push({ lat: firstSite.lat, lng: firstSite.lng });
+
+                // Subsequent centroids: weighted by distance to existing centroids
+                for (let c = 1; c < k; c++) {
+                    const distances = sites.map(site => {
+                        const minDist = Math.min(...centroids.map(centroid =>
+                            this.calculateDistance(site.lat, site.lng, centroid.lat, centroid.lng)
+                        ));
+                        return minDist * minDist; // Square for k-means++
                     });
+
+                    const totalDist = distances.reduce((sum, d) => sum + d, 0);
+                    const rand = Math.random() * totalDist;
+                    
+                    let cumsum = 0;
+                    for (let i = 0; i < sites.length; i++) {
+                        cumsum += distances[i];
+                        if (cumsum >= rand) {
+                            centroids.push({ lat: sites[i].lat, lng: sites[i].lng });
+                            break;
+                        }
+                    }
                 }
-                
-                // Fill remaining centroids if needed
-                while (centroids.length < k) {
-                    centroids.push({
-                        lat: sites[0].lat,
-                        lng: sites[0].lng
-                    });
-                }
-                
+
                 return centroids;
             }
 
-            balanceMoneyInClusters(clusters, siteMoneyAmounts) {
-                const clusterData = clusters.map(sites => ({
+            convertToSolution(geoClusters, siteMoneyAmounts) {
+                return geoClusters.map(sites => ({
                     sites: sites,
-                    totalMoney: sites.reduce((sum, site) => sum + (siteMoneyAmounts[site.name] || 0), 0)
+                    totalMoney: sites.reduce((sum, site) => sum + (siteMoneyAmounts[site.name] || 0), 0),
+                    totalDistance: 0
                 }));
+            }
 
-                // Simple balancing - move sites between clusters if it improves balance
-                for (let iter = 0; iter < 15; iter++) {
-                    let improved = false;
-                    
-                    // Sort clusters by money
-                    clusterData.sort((a, b) => b.totalMoney - a.totalMoney);
-                    
-                    const highCluster = clusterData[0];
-                    const lowCluster = clusterData[clusterData.length - 1];
-                    
-                    if (highCluster.totalMoney - lowCluster.totalMoney < 400) break;
-                    
-                    // Find a site to move from high to low
-                    for (const site of highCluster.sites) {
-                        const siteAmount = siteMoneyAmounts[site.name] || 0;
-                        
-                        if (lowCluster.totalMoney + siteAmount <= this.maxMoneyPerBiker) {
-                            const currentImbalance = highCluster.totalMoney - lowCluster.totalMoney;
-                            const newImbalance = Math.abs((highCluster.totalMoney - siteAmount) - (lowCluster.totalMoney + siteAmount));
-                            
-                            if (newImbalance < currentImbalance) {
-                                // Check if move makes geographic sense
-                                const distanceToNew = this.averageDistanceToCluster(site, lowCluster.sites);
-                                const distanceToOld = this.averageDistanceToCluster(site, highCluster.sites.filter(s => s !== site));
-                                
-                                if (distanceToNew < distanceToOld * 1.5) { // Allow some flexibility
-                                    // Move the site
-                                    highCluster.sites = highCluster.sites.filter(s => s !== site);
-                                    highCluster.totalMoney -= siteAmount;
-                                    lowCluster.sites.push(site);
-                                    lowCluster.totalMoney += siteAmount;
+            multiObjectiveOptimization(solution, siteMoneyAmounts) {
+                console.log('Starting multi-objective optimization within geographic clusters...');
+                
+                // Update initial distances
+                this.updateSolutionDistances(solution);
+                
+                let currentScore = this.evaluateSolution(solution);
+                let improved = true;
+                let iterations = 0;
+                const maxIterations = 80;
+
+                while (improved && iterations < maxIterations) {
+                    improved = false;
+                    iterations++;
+
+                    // Try swapping sites between geographically adjacent bikers
+                    for (let i = 0; i < solution.length; i++) {
+                        for (let j = i + 1; j < solution.length; j++) {
+                            if (this.trySwapOptimization(solution, i, j, siteMoneyAmounts)) {
+                                const newScore = this.evaluateSolution(solution);
+                                if (newScore < currentScore) {
+                                    currentScore = newScore;
                                     improved = true;
-                                    break;
                                 }
                             }
                         }
                     }
-                    
-                    if (!improved) break;
+
+                    // Try moving sites between bikers (with geographic constraints)
+                    for (let fromBiker = 0; fromBiker < solution.length; fromBiker++) {
+                        for (let toBiker = 0; toBiker < solution.length; toBiker++) {
+                            if (fromBiker !== toBiker && solution[fromBiker].sites.length > 1) {
+                                if (this.tryMoveOptimization(solution, fromBiker, toBiker, siteMoneyAmounts)) {
+                                    const newScore = this.evaluateSolution(solution);
+                                    if (newScore < currentScore) {
+                                        currentScore = newScore;
+                                        improved = true;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if (iterations % 25 === 0) {
+                        console.log(`Iteration ${iterations}, Score: ${currentScore.toFixed(2)}`);
+                    }
                 }
 
-                return clusterData;
+                console.log(`Multi-objective optimization completed after ${iterations} iterations`);
+                return solution;
             }
 
-            averageDistanceToCluster(site, clusterSites) {
-                if (clusterSites.length === 0) return 0;
-                
-                const totalDistance = clusterSites.reduce((sum, clusterSite) => 
+            trySwapOptimization(solution, bikerA, bikerB, siteMoneyAmounts) {
+                let bestImprovement = 0;
+                let bestSwap = null;
+
+                // Try swapping sites between bikers with geographic feasibility check
+                for (let i = 0; i < solution[bikerA].sites.length; i++) {
+                    for (let j = 0; j < solution[bikerB].sites.length; j++) {
+                        const siteA = solution[bikerA].sites[i];
+                        const siteB = solution[bikerB].sites[j];
+                        const moneyA = siteMoneyAmounts[siteA.name] || 0;
+                        const moneyB = siteMoneyAmounts[siteB.name] || 0;
+
+                        // Check money feasibility
+                        const newMoneyA = solution[bikerA].totalMoney - moneyA + moneyB;
+                        const newMoneyB = solution[bikerB].totalMoney - moneyB + moneyA;
+
+                        if (newMoneyA <= this.maxMoneyPerBiker && newMoneyB <= this.maxMoneyPerBiker) {
+                            // Check geographic feasibility (sites shouldn't be moved too far)
+                            const geoFeasibleA = this.isGeographicallyFeasible(siteB, solution[bikerA].sites.filter(s => s !== siteA));
+                            const geoFeasibleB = this.isGeographicallyFeasible(siteA, solution[bikerB].sites.filter(s => s !== siteB));
+                            
+                            if (geoFeasibleA && geoFeasibleB) {
+                                const improvement = this.calculateSwapImprovement(
+                                    solution, bikerA, bikerB, i, j, siteMoneyAmounts
+                                );
+
+                                if (improvement > bestImprovement) {
+                                    bestImprovement = improvement;
+                                    bestSwap = { bikerA, bikerB, indexA: i, indexB: j };
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (bestSwap) {
+                    this.executeSwap(solution, bestSwap, siteMoneyAmounts);
+                    return true;
+                }
+
+                return false;
+            }
+
+            tryMoveOptimization(solution, fromBiker, toBiker, siteMoneyAmounts) {
+                let bestImprovement = 0;
+                let bestMove = null;
+
+                for (let i = 0; i < solution[fromBiker].sites.length; i++) {
+                    const site = solution[fromBiker].sites[i];
+                    const siteMoney = siteMoneyAmounts[site.name] || 0;
+
+                    // Check money feasibility
+                    if (solution[toBiker].totalMoney + siteMoney <= this.maxMoneyPerBiker) {
+                        // Check geographic feasibility
+                        if (this.isGeographicallyFeasible(site, solution[toBiker].sites)) {
+                            const improvement = this.calculateMoveImprovement(
+                                solution, fromBiker, toBiker, i, siteMoneyAmounts
+                            );
+
+                            if (improvement > bestImprovement) {
+                                bestImprovement = improvement;
+                                bestMove = { fromBiker, toBiker, siteIndex: i };
+                            }
+                        }
+                    }
+                }
+
+                if (bestMove) {
+                    this.executeMove(solution, bestMove, siteMoneyAmounts);
+                    return true;
+                }
+
+                return false;
+            }
+
+            isGeographicallyFeasible(site, clusterSites) {
+                if (clusterSites.length === 0) return true;
+
+                // Calculate average distance from site to cluster
+                const avgDistance = clusterSites.reduce((sum, clusterSite) => 
                     sum + this.calculateDistance(site.lat, site.lng, clusterSite.lat, clusterSite.lng), 0
-                );
-                
-                return totalDistance / clusterSites.length;
+                ) / clusterSites.length;
+
+                // Calculate cluster's internal average distance
+                let internalDistance = 0;
+                let count = 0;
+                for (let i = 0; i < clusterSites.length; i++) {
+                    for (let j = i + 1; j < clusterSites.length; j++) {
+                        internalDistance += this.calculateDistance(
+                            clusterSites[i].lat, clusterSites[i].lng,
+                            clusterSites[j].lat, clusterSites[j].lng
+                        );
+                        count++;
+                    }
+                }
+                const avgInternalDistance = count > 0 ? internalDistance / count : 0;
+
+                // Site is geographically feasible if it's not much farther than the cluster's internal distances
+                return avgDistance <= avgInternalDistance * 1.8;
             }
 
-            optimizeClusterRoute(cluster, depot) {
-                if (cluster.length === 0) return [depot, depot];
-                if (cluster.length === 1) return [depot, cluster[0], depot];
+            calculateSwapImprovement(solution, bikerA, bikerB, indexA, indexB, siteMoneyAmounts) {
+                const currentScore = this.evaluateBikerPair(solution[bikerA], solution[bikerB]);
 
-                // Nearest neighbor with simple 2-opt improvement
-                let route = this.nearestNeighborRoute(cluster, depot);
-                route = this.simple2Opt(route);
+                // Simulate swap
+                const tempSolution = JSON.parse(JSON.stringify(solution));
+                const siteA = tempSolution[bikerA].sites[indexA];
+                const siteB = tempSolution[bikerB].sites[indexB];
+                const moneyA = siteMoneyAmounts[siteA.name] || 0;
+                const moneyB = siteMoneyAmounts[siteB.name] || 0;
+
+                tempSolution[bikerA].sites[indexA] = siteB;
+                tempSolution[bikerB].sites[indexB] = siteA;
+                tempSolution[bikerA].totalMoney = tempSolution[bikerA].totalMoney - moneyA + moneyB;
+                tempSolution[bikerB].totalMoney = tempSolution[bikerB].totalMoney - moneyB + moneyA;
+
+                this.updateBikerDistance(tempSolution[bikerA]);
+                this.updateBikerDistance(tempSolution[bikerB]);
+
+                const newScore = this.evaluateBikerPair(tempSolution[bikerA], tempSolution[bikerB]);
+                return currentScore - newScore;
+            }
+
+            calculateMoveImprovement(solution, fromBiker, toBiker, siteIndex, siteMoneyAmounts) {
+                const currentScore = this.evaluateBikerPair(solution[fromBiker], solution[toBiker]);
+
+                // Simulate move
+                const tempSolution = JSON.parse(JSON.stringify(solution));
+                const site = tempSolution[fromBiker].sites[siteIndex];
+                const siteMoney = siteMoneyAmounts[site.name] || 0;
+
+                tempSolution[fromBiker].sites.splice(siteIndex, 1);
+                tempSolution[toBiker].sites.push(site);
+                tempSolution[fromBiker].totalMoney -= siteMoney;
+                tempSolution[toBiker].totalMoney += siteMoney;
+
+                this.updateBikerDistance(tempSolution[fromBiker]);
+                this.updateBikerDistance(tempSolution[toBiker]);
+
+                const newScore = this.evaluateBikerPair(tempSolution[fromBiker], tempSolution[toBiker]);
+                return currentScore - newScore;
+            }
+
+            executeSwap(solution, swap, siteMoneyAmounts) {
+                const { bikerA, bikerB, indexA, indexB } = swap;
+                const siteA = solution[bikerA].sites[indexA];
+                const siteB = solution[bikerB].sites[indexB];
+                const moneyA = siteMoneyAmounts[siteA.name] || 0;
+                const moneyB = siteMoneyAmounts[siteB.name] || 0;
+
+                solution[bikerA].sites[indexA] = siteB;
+                solution[bikerB].sites[indexB] = siteA;
+                solution[bikerA].totalMoney = solution[bikerA].totalMoney - moneyA + moneyB;
+                solution[bikerB].totalMoney = solution[bikerB].totalMoney - moneyB + moneyA;
+
+                this.updateBikerDistance(solution[bikerA]);
+                this.updateBikerDistance(solution[bikerB]);
+            }
+
+            executeMove(solution, move, siteMoneyAmounts) {
+                const { fromBiker, toBiker, siteIndex } = move;
+                const site = solution[fromBiker].sites[siteIndex];
+                const siteMoney = siteMoneyAmounts[site.name] || 0;
+
+                solution[fromBiker].sites.splice(siteIndex, 1);
+                solution[toBiker].sites.push(site);
+                solution[fromBiker].totalMoney -= siteMoney;
+                solution[toBiker].totalMoney += siteMoney;
+
+                this.updateBikerDistance(solution[fromBiker]);
+                this.updateBikerDistance(solution[toBiker]);
+            }
+
+            evaluateSolution(solution) {
+                const distances = solution.map(biker => biker.totalDistance);
+                const moneyAmounts = solution.map(biker => biker.totalMoney);
+
+                // Distance balance (coefficient of variation)
+                const avgDistance = distances.reduce((a, b) => a + b, 0) / distances.length;
+                const distanceVariance = distances.reduce((sum, d) => sum + Math.pow(d - avgDistance, 2), 0) / distances.length;
+                const distanceCV = Math.sqrt(distanceVariance) / (avgDistance || 1);
+
+                // Money balance
+                const avgMoney = moneyAmounts.reduce((a, b) => a + b, 0) / moneyAmounts.length;
+                const moneyVariance = moneyAmounts.reduce((sum, m) => sum + Math.pow(m - avgMoney, 2), 0) / moneyAmounts.length;
+                const moneyCV = Math.sqrt(moneyVariance) / (avgMoney || 1);
+
+                // Money violations penalty
+                const violations = moneyAmounts.reduce((sum, m) => sum + Math.max(0, m - this.maxMoneyPerBiker), 0);
+
+                // Geographic compactness (lower intra-cluster distance is better)
+                const geoScore = solution.reduce((sum, biker) => sum + this.calculateIntraClusterDistance(biker.sites), 0) / solution.length;
+
+                // Weighted composite score (lower is better)
+                return (distanceCV * 100) + (moneyCV * 60) + (violations * 0.02) + (geoScore * 8);
+            }
+
+            evaluateBikerPair(bikerA, bikerB) {
+                const distanceImbalance = Math.abs(bikerA.totalDistance - bikerB.totalDistance);
+                const moneyImbalance = Math.abs(bikerA.totalMoney - bikerB.totalMoney);
+                const violations = Math.max(0, bikerA.totalMoney - this.maxMoneyPerBiker) + 
+                                 Math.max(0, bikerB.totalMoney - this.maxMoneyPerBiker);
                 
+                return distanceImbalance + moneyImbalance * 0.6 + violations * 0.02;
+            }
+
+            calculateIntraClusterDistance(sites) {
+                if (sites.length <= 1) return 0;
+
+                let totalDistance = 0;
+                let count = 0;
+
+                for (let i = 0; i < sites.length; i++) {
+                    for (let j = i + 1; j < sites.length; j++) {
+                        totalDistance += this.calculateDistance(sites[i].lat, sites[i].lng, sites[j].lat, sites[j].lng);
+                        count++;
+                    }
+                }
+
+                return count > 0 ? totalDistance / count : 0;
+            }
+
+            updateSolutionDistances(solution) {
+                solution.forEach(biker => this.updateBikerDistance(biker));
+            }
+
+            updateBikerDistance(biker) {
+                if (biker.sites.length === 0) {
+                    biker.totalDistance = 0;
+                    return;
+                }
+
+                const route = this.optimizeRouteOrder(biker.sites, this.depot);
+                biker.totalDistance = this.calculateRouteDistance(route);
+            }
+
+            optimizeRouteOrder(sites, depot) {
+                if (sites.length === 0) return [depot, depot];
+                if (sites.length === 1) return [depot, sites[0], depot];
+
+                // Nearest neighbor with limited 2-opt
+                let route = this.nearestNeighborRoute(sites, depot);
+                route = this.limited2Opt(route);
                 return route;
             }
 
-            nearestNeighborRoute(cluster, depot) {
+            nearestNeighborRoute(sites, depot) {
                 let route = [depot];
-                let unvisited = [...cluster];
+                let unvisited = [...sites];
                 let current = depot;
 
                 while (unvisited.length > 0) {
@@ -999,59 +1243,37 @@
                 return route;
             }
 
-            simple2Opt(route) {
+            limited2Opt(route) {
                 if (route.length < 4) return route;
 
-                let improved = true;
-                let iterations = 0;
-                const maxIterations = 20; // Limit to prevent hanging
+                for (let i = 1; i < route.length - 2; i++) {
+                    for (let j = i + 1; j < route.length - 1; j++) {
+                        const newRoute = [...route];
+                        const segment = newRoute.slice(i, j + 1).reverse();
+                        newRoute.splice(i, j - i + 1, ...segment);
 
-                while (improved && iterations < maxIterations) {
-                    improved = false;
-                    iterations++;
-                    
-                    for (let i = 1; i < route.length - 2; i++) {
-                        for (let j = i + 1; j < route.length - 1; j++) {
-                            const newRoute = [...route];
-                            const segment = newRoute.slice(i, j + 1).reverse();
-                            newRoute.splice(i, j - i + 1, ...segment);
-
-                            const oldDistance = this.calculateDistance(route[i-1].lat, route[i-1].lng, route[i].lat, route[i].lng) +
-                                              this.calculateDistance(route[j].lat, route[j].lng, route[j+1].lat, route[j+1].lng);
-                            
-                            const newDistance = this.calculateDistance(newRoute[i-1].lat, newRoute[i-1].lng, newRoute[i].lat, newRoute[i].lng) +
-                                              this.calculateDistance(newRoute[j].lat, newRoute[j].lng, newRoute[j+1].lat, newRoute[j+1].lng);
-
-                            if (newDistance < oldDistance) {
-                                route = newRoute;
-                                improved = true;
-                                break;
-                            }
+                        if (this.calculateRouteDistance(newRoute) < this.calculateRouteDistance(route)) {
+                            route = newRoute;
                         }
-                        if (improved) break;
                     }
                 }
-
                 return route;
             }
 
-            calculateRouteDistanceEstimate(route) {
+            calculateRouteDistance(route) {
                 let totalDistance = 0;
-                
                 for (let i = 0; i < route.length - 1; i++) {
-                    // Use road factor approximation instead of API calls
-                    const straightDistance = this.calculateDistance(
+                    const distance = this.calculateDistance(
                         route[i].lat, route[i].lng,
                         route[i + 1].lat, route[i + 1].lng
                     );
-                    totalDistance += straightDistance * 1.4; // Road network factor
+                    totalDistance += distance * 1.4; // Road network factor
                 }
-                
                 return totalDistance;
             }
 
             calculateDistance(lat1, lon1, lat2, lon2) {
-                const R = 6371; // Earth's radius in km
+                const R = 6371;
                 const dLat = (lat2 - lat1) * Math.PI / 180;
                 const dLon = (lon2 - lon1) * Math.PI / 180;
                 const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
